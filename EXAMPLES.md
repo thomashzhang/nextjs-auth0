@@ -41,6 +41,7 @@
   - [On the server (App Router)](#on-the-server-app-router-3)
   - [On the server (Pages Router)](#on-the-server-pages-router-3)
   - [Middleware](#middleware-3)
+- [Preemptive Token Refresh](#preemptive-token-refresh)
 
 ## Passing authorization parameters
 
@@ -1128,3 +1129,60 @@ export async function middleware(request: NextRequest) {
   return resWithCombinedHeaders
 }
 ```
+
+### Preemptive Token Refresh
+
+By default, access tokens are only refreshed when they have expired. You can configure preemptive refresh based on a percentage of the token's lifetime using the `refreshThresholdPercent` option:
+
+**App Router (Server Actions, Route Handlers):**
+
+```typescript
+import { auth0 } from "@/lib/auth0"
+
+export async function GET() {
+  try {
+    // Refresh the token when 75% of its lifetime has passed
+    const { token, expiresAt } = await auth0.getAccessToken({ 
+      refreshThresholdPercent: 75 
+    });
+
+    // Use the token
+    // ...
+  } catch (error) {
+    console.error('Error getting access token:', error);
+    return Response.json({ error: 'Failed to get access token' }, { status: 500 });
+  }
+}
+```
+
+**Pages Router (getServerSideProps, API Routes):**
+
+```typescript
+import { getAccessToken, withApiAuthRequired } from '@auth0/nextjs-auth0';
+import type { NextApiRequest, NextApiResponse } from 'next';
+
+export default withApiAuthRequired(async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  try {
+    // Refresh the token when 50% of its lifetime has passed
+    const { token, expiresAt } = await getAccessToken(req, res, {
+      refreshThresholdPercent: 50
+    });
+
+    // Use the token
+    // ...
+  } catch (error: any) {
+    console.error('Error getting access token:', error);
+    res.status(error.status || 500).json({ error: error.message });
+  }
+});
+```
+
+The `refreshThresholdPercent` option accepts values from 1 to 99:
+- `50` means refresh when 50% of the token's lifetime has passed
+- `75` means refresh when 75% of the token's lifetime has passed
+- Values outside the 1-99 range are ignored and the token is only refreshed when expired
+
+**Note:** Percentage-based refresh requires the token to have an issued-at (`iat`) timestamp. If this information is not available, the system falls back to expiration-only refresh behavior.

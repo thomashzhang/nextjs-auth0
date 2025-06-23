@@ -715,7 +715,8 @@ export class AuthClient {
    */
   async getTokenSet(
     tokenSet: TokenSet,
-    forceRefresh?: boolean | undefined
+    forceRefresh?: boolean | undefined,
+    refreshThresholdPercent?: number | undefined
   ): Promise<[null, TokenSet] | [SdkError, null]> {
     // the access token has expired but we do not have a refresh token
     if (!tokenSet.refreshToken && tokenSet.expiresAt <= Date.now() / 1000) {
@@ -730,7 +731,14 @@ export class AuthClient {
 
     if (tokenSet.refreshToken) {
       // either the access token has expired or we are forcing a refresh
-      if (forceRefresh || tokenSet.expiresAt <= Date.now() / 1000) {
+      // or we are doing preemptive refresh based on percentage
+      const shouldRefresh = this.shouldRefreshToken(
+        tokenSet,
+        forceRefresh,
+        refreshThresholdPercent
+      );
+
+      if (shouldRefresh) {
         const [discoveryError, authorizationServerMetadata] =
           await this.discoverAuthorizationServerMetadata();
 
@@ -771,14 +779,15 @@ export class AuthClient {
           ];
         }
 
-        const accessTokenExpiresAt =
-          Math.floor(Date.now() / 1000) + Number(oauthRes.expires_in);
+        const now = Math.floor(Date.now() / 1000);
+        const accessTokenExpiresAt = now + Number(oauthRes.expires_in);
 
         const updatedTokenSet = {
           ...tokenSet, // contains the existing `iat` claim to maintain the session lifetime
           accessToken: oauthRes.access_token,
           idToken: oauthRes.id_token,
-          expiresAt: accessTokenExpiresAt
+          expiresAt: accessTokenExpiresAt,
+          iat: now // track when this token was issued for percentage-based refresh
         };
 
         if (oauthRes.refresh_token) {
@@ -1045,6 +1054,49 @@ export class AuthClient {
       this.domain.startsWith("https://")
       ? this.domain
       : `https://${this.domain}`;
+  }
+
+  /**
+   * Determines whether a token should be refreshed based on the refresh threshold percentage
+   * or if it's expired or force refresh is requested.
+   */
+  private shouldRefreshToken(
+    tokenSet: TokenSet,
+    forceRefresh?: boolean,
+    refreshThresholdPercent?: number
+  ): boolean {
+    const now = Date.now() / 1000;
+
+    // Force refresh always takes precedence
+    if (forceRefresh) {
+      return true;
+    }
+
+    // Token is expired
+    if (tokenSet.expiresAt <= now) {
+      return true;
+    }
+
+    // Check percentage-based refresh if threshold is provided and valid
+    if (
+      refreshThresholdPercent &&
+      refreshThresholdPercent >= 1 &&
+      refreshThresholdPercent <= 99
+    ) {
+      // We need to know when the token was issued to calculate the lifetime
+      // If we don't have an iat claim, we can't calculate percentage-based refresh
+      // Fall back to expiration-only logic
+      const issuedAt = tokenSet.iat;
+      if (issuedAt) {
+        const totalLifetime = tokenSet.expiresAt - issuedAt;
+        const lifetimeElapsed = now - issuedAt;
+        const percentageElapsed = (lifetimeElapsed / totalLifetime) * 100;
+
+        return percentageElapsed >= refreshThresholdPercent;
+      }
+    }
+
+    return false;
   }
 
   /**

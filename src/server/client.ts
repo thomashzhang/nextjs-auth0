@@ -371,7 +371,7 @@ export class Auth0Client {
     arg2?: PagesRouterResponse | NextResponse,
     arg3?: GetAccessTokenOptions
   ): Promise<{ token: string; expiresAt: number; scope?: string }> {
-    const defaultOptions: Required<GetAccessTokenOptions> = {
+    const defaultOptions: GetAccessTokenOptions = {
       refresh: false
     };
 
@@ -422,7 +422,8 @@ export class Auth0Client {
 
     const [error, tokenSet] = await this.authClient.getTokenSet(
       session.tokenSet,
-      options.refresh
+      options.refresh,
+      options.refreshThresholdPercent
     );
     if (error) {
       throw error;
@@ -799,4 +800,11 @@ export class Auth0Client {
 
 export type GetAccessTokenOptions = {
   refresh?: boolean;
+  /**
+   * The percentage of token lifetime at which to refresh the token preemptively.
+   * For example, 50 means refresh when 50% of the token's lifetime has passed.
+   * If not specified, tokens are only refreshed when they have expired.
+   * Valid range: 1-99. Values outside this range will be ignored.
+   */
+  refreshThresholdPercent?: number;
 };
