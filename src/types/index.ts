@@ -4,6 +4,7 @@ export interface TokenSet {
   scope?: string;
   refreshToken?: string;
   expiresAt: number; // the time at which the access token expires in seconds since epoch
+  iat?: number; // the time at which the access token was issued in seconds since epoch
 }
 
 export interface ConnectionTokenSet {

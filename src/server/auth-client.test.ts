@@ -4660,7 +4660,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
       expect(updatedTokenSet).toEqual({
         accessToken: DEFAULT.accessToken,
         refreshToken: DEFAULT.refreshToken,
-        expiresAt: expect.any(Number)
+        expiresAt: expect.any(Number),
+        iat: expect.any(Number)
       });
     });
 
@@ -4781,7 +4782,8 @@ ca/T0LLtgmbMmxSv/MmzIg==
         expect(updatedTokenSet).toEqual({
           accessToken: DEFAULT.accessToken,
           refreshToken: "rt_456",
-          expiresAt: expect.any(Number)
+          expiresAt: expect.any(Number),
+          iat: expect.any(Number)
         });
       });
     });
